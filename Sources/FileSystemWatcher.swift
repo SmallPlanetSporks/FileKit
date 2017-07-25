@@ -35,6 +35,38 @@ public class FileSystemWatcher {
     // MARK: - Private Static Properties
 
     /// The event stream callback for when events occur.
+#if swift(>=3.2)
+    private static let _eventCallback: FSEventStreamCallback = {
+        (stream: ConstFSEventStreamRef,
+        contextInfo: UnsafeMutableRawPointer?,
+        numEvents: Int,
+        eventPaths: UnsafeMutableRawPointer,
+        eventFlags: UnsafePointer<FSEventStreamEventFlags>,
+        eventIds: UnsafePointer<FSEventStreamEventId>) in
+
+        FileSystemWatcher.log("Callback Fired")
+
+        let watcher: FileSystemWatcher = unsafeBitCast(contextInfo, to: FileSystemWatcher.self)
+        defer {
+            watcher.lastEventId = eventIds[numEvents - 1]
+        }
+        guard let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] else {
+            return
+        }
+
+        for index in 0..<numEvents {
+            let id = eventIds[index]
+            let path = paths[index]
+            let flags = eventFlags[index]
+
+            let event = FileSystemEvent(
+                id: id,
+                path: Path(path),
+                flags: FileSystemEventFlags(rawValue: Int(flags)))
+            watcher._processEvent(event)
+        }
+    }
+#else
     private static let _eventCallback: FSEventStreamCallback = {
         (stream: ConstFSEventStreamRef,
         contextInfo: UnsafeMutableRawPointer?,
@@ -69,6 +101,7 @@ public class FileSystemWatcher {
             watcher._processEvent(event)
         }
     }
+#endif
 
     // MARK: - Properties
 
